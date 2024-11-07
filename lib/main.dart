@@ -6,10 +6,15 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:provider/provider.dart';
+
+import 'notification.dart';
 
 void main() {
-  runApp(MaterialApp(theme: style.theme, home: const MyApp()));
+  runApp(MultiProvider(providers: [
+    ChangeNotifierProvider(create: (c) => Store1()),
+    ChangeNotifierProvider(create: (c) => Store2())
+  ], child: MaterialApp(theme: style.theme, home: const MyApp())));
 }
 
 var likeFontWeight = const TextStyle(fontWeight: FontWeight.w600);
@@ -113,6 +118,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    initNotification(context);
+
     loadData(); // getData() 대신 loadData() 만 호출
   }
 
@@ -139,6 +146,12 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+          child: Text('+'),
+          onPressed: () {
+            // showNotification();
+            showNotification2();
+          }),
       appBar: AppBar(
         title: const Text('Instagram'),
         actions: [
@@ -206,7 +219,6 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     widget.scroll.addListener(() {
       if (widget.scroll.position.pixels ==
@@ -431,14 +443,102 @@ class TypeImage extends StatelessWidget {
   }
 }
 
+class Store2 extends ChangeNotifier {
+  var name = 'john kim';
+  changeName() {
+    name = 'john park';
+    notifyListeners();
+  }
+}
+
+class Store1 extends ChangeNotifier {
+  var follower = 0;
+  var friend = false;
+  var profileImage = [];
+  getData() async {
+    var result = await http
+        .get(Uri.parse('https://codingapple1.github.io/app/profile.json'));
+    var result2 = jsonDecode(result.body);
+    profileImage = result2;
+    notifyListeners();
+    print(profileImage);
+  }
+
+  addFollow() {
+    if (!friend) {
+      follower++;
+      friend = true;
+    } else {
+      follower--;
+      friend = false;
+    }
+    notifyListeners();
+  }
+}
+
 class Profile extends StatelessWidget {
   const Profile({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
-      body: Text('프로필페이지'),
+        appBar: AppBar(
+          title: Text(context.watch<Store2>().name),
+        ),
+        body: CustomScrollView(slivers: [
+          SliverToBoxAdapter(
+            child: ProfileHeader(),
+          ),
+          SliverGrid(
+              delegate: SliverChildBuilderDelegate(
+                  (c, i) =>
+                      Image.network(context.watch<Store1>().profileImage[i]),
+                  childCount: context.watch<Store1>().profileImage.length),
+              gridDelegate:
+                  SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2))
+        ]));
+  }
+}
+
+class ProfileHeader extends StatelessWidget {
+  const ProfileHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        CircleAvatar(
+          radius: 30,
+          backgroundColor: Colors.grey,
+        ),
+        Text('팔로워 ${context.watch<Store1>().follower}명'),
+        ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white),
+            onPressed: () {
+              context.read<Store1>().addFollow();
+            },
+            child: context.read<Store1>().friend
+                ? SizedBox(
+                    width: 60,
+                    height: 20,
+                    child: Center(child: Text('언팔로우')),
+                  )
+                : SizedBox(
+                    width: 60,
+                    height: 20,
+                    child: Center(child: Text('팔로우')),
+                  )),
+        ElevatedButton(
+            onPressed: () {
+              context.read<Store1>().getData();
+            },
+            child: SizedBox(width: 60, height: 20, child: Text('사진가져오기')))
+      ],
     );
   }
 }
